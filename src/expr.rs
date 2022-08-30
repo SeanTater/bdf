@@ -1,6 +1,8 @@
 //!
 //! Format GLSL code to do basic vector arithmetic operations on primitive datatypes.
 //!
+use std::ops::{Add, Sub, Rem, Div, Mul, Neg};
+
 use crate::errors::{BDFError, Result};
 use crate::device::{Accelerator, Code, Tensor};
 
@@ -103,6 +105,11 @@ impl Expr {
         }
     }
 
+    /// Create an expression from a variable name
+    pub fn var<X: Into<String>>(name: X, dtype: Dtype) -> Expr {
+        Expr::Variable { name: name.into(), dtype }
+    }
+
     /// Assign bindings to each variable in the expression, using a vector
     pub fn variables(&self, bindings: &mut Vec<(String, Dtype)>) {
         match self {
@@ -201,6 +208,119 @@ void main() {{
         Ok(Code::new(accel, shader)?)
     }
 }
+
+impl Add for &Expr {
+    type Output = Expr;
+    fn add(self, other: &Expr) -> Expr {
+        Expr::Operation {
+            op: Operation::Add,
+            dtype: self.dtype(),
+            lhs: Box::new(self.clone()),
+            rhs: Box::new(other.clone()),
+        }
+    }
+}
+impl Sub for &Expr {
+    type Output = Expr;
+    fn sub(self, other: &Expr) -> Expr {
+        Expr::Operation {
+            op: Operation::Sub,
+            dtype: self.dtype(),
+            lhs: Box::new(self.clone()),
+            rhs: Box::new(other.clone()),
+        }
+    }
+}
+impl Mul for &Expr {
+    type Output = Expr;
+    fn mul(self, other: &Expr) -> Expr {
+        Expr::Operation {
+            op: Operation::Mul,
+            dtype: self.dtype(),
+            lhs: Box::new(self.clone()),
+            rhs: Box::new(other.clone()),
+        }
+    }
+}
+impl Div for &Expr {
+    type Output = Expr;
+    fn div(self, other: &Expr) -> Expr {
+        Expr::Operation {
+            op: Operation::Div,
+            dtype: self.dtype(),
+            lhs: Box::new(self.clone()),
+            rhs: Box::new(other.clone()),
+        }
+    }
+}
+impl Rem for &Expr {
+    type Output = Expr;
+    fn rem(self, other: &Expr) -> Expr {
+        Expr::Operation {
+            op: Operation::Mod,
+            dtype: self.dtype(),
+            lhs: Box::new(self.clone()),
+            rhs: Box::new(other.clone()),
+        }
+    }
+}
+impl Neg for &Expr {
+    type Output = Expr;
+    fn neg(self) -> Expr {
+        Expr::Operation {
+            op: Operation::Sub,
+            dtype: self.dtype(),
+            lhs: Box::new(Expr::Constant {
+                val: "0".into(),
+                dtype: self.dtype(),
+            }),
+            rhs: Box::new(self.clone()),
+        }
+    }
+}
+
+// Convert primitive types to the corresponding expression type.
+impl From<i32> for Expr {
+    fn from(val: i32) -> Expr {
+        Expr::Constant {
+            val: format!("{}", val),
+            dtype: Dtype::I32,
+        }
+    }
+}
+impl From<u32> for Expr {
+    fn from(val: u32) -> Expr {
+        Expr::Constant {
+            val: format!("{}", val),
+            dtype: Dtype::U32,
+        }
+    }
+}
+impl From<f32> for Expr {
+    fn from(val: f32) -> Expr {
+        Expr::Constant {
+            val: format!("{}", val),
+            dtype: Dtype::F32,
+        }
+    }
+}
+impl From<f64> for Expr {
+    fn from(val: f64) -> Expr {
+        Expr::Constant {
+            val: format!("{}", val),
+            dtype: Dtype::F64,
+        }
+    }
+}
+impl From<bool> for Expr {
+    fn from(val: bool) -> Expr {
+        Expr::Constant {
+            val: format!("{}", val),
+            dtype: Dtype::Bool,
+        }
+    }
+}
+
 
 #[test]
 fn test_basic_expression() {
@@ -352,5 +472,115 @@ fn test_compile_run_shader() {
     assert_eq!(
         buf_out.read().unwrap(),
         vec![20, 22, 24, 26, 28, 30, 32, 34, 36, 38]
+    );
+}
+
+#[test]
+fn test_expression_arithmetic() {
+    let lhs = Expr::Variable {
+        name: "a".to_string(),
+        dtype: Dtype::U32,
+    };
+    let rhs = Expr::Variable {
+        name: "b".to_string(),
+        dtype: Dtype::U32,
+    };
+    // Addition
+    assert_eq!(&lhs + &rhs, Expr::Operation {
+        op: Operation::Add,
+        dtype: Dtype::U32,
+        lhs: Box::new(lhs.clone()),
+        rhs: Box::new(rhs.clone()),
+    });
+    // Subtraction
+    assert_eq!(&lhs - &rhs, Expr::Operation {
+        op: Operation::Sub,
+        dtype: Dtype::U32,
+        lhs: Box::new(lhs.clone()),
+        rhs: Box::new(rhs.clone()),
+    });
+    // Multiplication
+    assert_eq!(&lhs * &rhs, Expr::Operation {
+        op: Operation::Mul,
+        dtype: Dtype::U32,
+        lhs: Box::new(lhs.clone()),
+        rhs: Box::new(rhs.clone()),
+    });
+    // Division
+    assert_eq!(&lhs / &rhs, Expr::Operation {
+        op: Operation::Div,
+        dtype: Dtype::U32,
+        lhs: Box::new(lhs.clone()),
+        rhs: Box::new(rhs.clone()),
+    });
+    // Modulus
+    assert_eq!(&lhs % &rhs, Expr::Operation {
+        op: Operation::Mod,
+        dtype: Dtype::U32,
+        lhs: Box::new(lhs.clone()),
+        rhs: Box::new(rhs.clone()),
+    });
+    // Negation
+    assert_eq!(-&lhs, Expr::Operation {
+        op: Operation::Sub,
+        dtype: Dtype::U32,
+        lhs: Box::new(Expr::Constant {
+            val: "0".into(),
+            dtype: Dtype::U32,
+        }),
+        rhs: Box::new(lhs.clone()),
+    });
+}
+
+#[test]
+fn test_expression_literals() {
+    assert_eq!(Expr::from(1u32), Expr::Constant {
+        val: "1".into(),
+        dtype: Dtype::U32,
+    });
+    assert_eq!(Expr::from(1i32), Expr::Constant {
+        val: "1".into(),
+        dtype: Dtype::I32,
+    });
+    assert_eq!(Expr::from(1f32), Expr::Constant {
+        val: "1".into(),
+        dtype: Dtype::F32,
+    });
+    assert_eq!(Expr::from(1f64), Expr::Constant {
+        val: "1".into(),
+        dtype: Dtype::F64,
+    });
+    assert_eq!(Expr::from(true), Expr::Constant {
+        val: "true".into(),
+        dtype: Dtype::Bool,
+    });
+}
+
+#[test]
+fn test_complex_high_level_expression() {
+    let expr = &Expr::var("a", Dtype::U32) + &(&(&Expr::from(12u32) * &Expr::var("b", Dtype::U32)) + &Expr::from(5u32));
+    assert_eq!( expr, 
+        Expr::Operation {
+            op: Operation::Add,
+            dtype: Dtype::U32,
+            lhs: Box::new(Expr::Variable { name: "a".into(), dtype: Dtype::U32 }),
+            rhs: Box::new(Expr::Operation {
+                op: Operation::Add,
+                dtype: Dtype::U32,
+                lhs: Box::new(Expr::Operation {
+                    op: Operation::Mul,
+                    dtype: Dtype::U32,
+                    lhs: Box::new(Expr::Constant {
+                        val: "12".into(),
+                        dtype: Dtype::U32,
+                    }),
+                    rhs: Box::new(Expr::Variable { name: "b".into(), dtype: Dtype::U32 }),
+                }),
+                rhs: Box::new(Expr::Constant {
+                    val: "5".into(),
+                    dtype: Dtype::U32,
+                }),
+            }),
+        }
     );
 }
