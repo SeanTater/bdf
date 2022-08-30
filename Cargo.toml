@@ -1,0 +1,18 @@
+[package]
+name = "bdf"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.58"
+async-trait = "0.1.57"
+bytemuck = "1.11.0"
+datafusion = "10.0.0"
+futures = "0.3.21"
+shaderc = "0.8.0"
+thiserror = "1.0.32"
+tokio = "1.20.1"
+vulkano = "0.30.0"
+vulkano-shaders = "0.30.0"
