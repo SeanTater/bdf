@@ -201,33 +201,33 @@ fn main() -> Result<()> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Dtype {
-    F16,
+    //F16,
     F32,
     F64,
-    I8,
-    I16,
+    //I8,
+    //I16,
     I32,
-    I64,
-    U8,
-    U16,
+    //I64,
+    //U8,
+    //U16,
     U32,
-    U64,
+    //U64,
     Bool,
 }
 impl Dtype {
     pub fn glsl_type(&self) -> &'static str {
         match self {
-            Dtype::F16 => "half",
+            //Dtype::F16 => "half",
             Dtype::F32 => "float",
             Dtype::F64 => "double",
-            Dtype::I8 => "int8_t",
-            Dtype::I16 => "int16_t",
-            Dtype::I32 => "int32_t",
-            Dtype::I64 => "int64_t",
-            Dtype::U8 => "uint8_t",
-            Dtype::U16 => "uint16_t",
-            Dtype::U32 => "uint32_t",
-            Dtype::U64 => "uint64_t",
+            //Dtype::I8 => "int8_t",
+            //Dtype::I16 => "int16_t",
+            Dtype::I32 => "int",
+            //Dtype::I64 => "int64_t",
+            //Dtype::U8 => "uint8_t",
+            //Dtype::U16 => "uint16_t",
+            Dtype::U32 => "uint",
+            //Dtype::U64 => "uint64_t",
             Dtype::Bool => "bool",
         }
     }
@@ -340,7 +340,7 @@ impl Expression {
         let mut bindings = Vec::new();
         self.variables(&mut bindings);
         // Append an output binding for the result of the expression.
-        bindings.push(("out".to_string(), self.dtype()));
+        bindings.push(("dest".to_string(), self.dtype()));
 
         let mut result = String::new();
         for (index, (name, dtype)) in bindings.iter().enumerate() {
@@ -365,7 +365,7 @@ impl Expression {
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 {layouts}
 void main() {{
-    output.data[gl_GlobalInvocationID.x] = {expression};
+    dest.data[gl_GlobalInvocationID.x] = {expression};
 }}",
             layouts = self.glsl_bindings(),
             expression = self.glsl_expression(),
@@ -375,12 +375,24 @@ void main() {{
     /// Compile the expression as a GLSL shader.
     /// Returns the vulkano_shaders::Shader module.
     pub fn compile<'t>(&self, accel: &'t Accelerator) -> Result<Code<'t>> {
-        use std::result::Result; // to allow the macro to work
-        // vulkano_shaders::shader! {
-        //     ty: "compute",
-        //     src: self.glsl_shader_source().as_str(),
-        // };
-        let shader = cs::load(accel.device.clone())?;
+        let compiler = shaderc::Compiler::new().ok_or(BDFError::ShaderCCompilerError)?;
+
+        let mut variables = vec![];
+        self.variables(&mut variables);
+        let param_count = variables.len();
+
+        let source = self.glsl_shader_source();
+        let options = shaderc::CompileOptions::new().ok_or(BDFError::ShaderCCompilerError)?;
+        let compiled = compiler.compile_into_spirv(
+            &source,
+            shaderc::ShaderKind::Compute,
+            "expression.glsl",
+            "main",
+            Some(&options),
+        )?;
+        let spirv_words = compiled.as_binary();
+        let shader = bdf::builder::load(accel.device.clone(), spirv_words, param_count+1)?;
+
         Ok(Code { accel, shader })
     }
 }
@@ -471,9 +483,9 @@ fn test_expression_bindings() {
 layout(set = 0, binding = 1) buffer B {
     float data[];
 } b;
-layout(set = 0, binding = 2) buffer OUT {
+layout(set = 0, binding = 2) buffer DEST {
     float data[];
-} out;
+} dest;
 "
     );
 }
@@ -502,18 +514,18 @@ layout(set = 0, binding = 0) buffer A {
 layout(set = 0, binding = 1) buffer B {
     float data[];
 } b;
-layout(set = 0, binding = 2) buffer OUT {
+layout(set = 0, binding = 2) buffer DEST {
     float data[];
-} out;
+} dest;
 
 void main() {
-    output.data[gl_GlobalInvocationID.x] = (a.data[gl_GlobalInvocationID.x] + b.data[gl_GlobalInvocationID.x]);
+    dest.data[gl_GlobalInvocationID.x] = (a.data[gl_GlobalInvocationID.x] + b.data[gl_GlobalInvocationID.x]);
 }"
     );
 }
 
 #[test]
-fn test_compile_shader() {
+fn test_compile_run_shader() {
     let expr = Expression::Operation {
         op: Operation::Add,
         dtype: Dtype::U32,

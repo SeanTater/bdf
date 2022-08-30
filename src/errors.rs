@@ -28,6 +28,10 @@ pub enum BDFError {
     DeviceMemoryAllocationError(#[from] vulkano::memory::DeviceMemoryAllocationError),
     #[error("Error acquiring read lock on device buffer: {0}")]
     BufferReadLockError(#[from] vulkano::buffer::cpu_access::ReadLockError),
+    #[error("Error setting up a SPIR-V Compiler for buffer (details unavailable)")]
+    ShaderCCompilerError,
+    #[error("Error compiling shader: {0}")]
+    ShaderCompilationError(#[from] shaderc::Error),
 }
 
 pub type Result<X> = std::result::Result<X, BDFError>;
