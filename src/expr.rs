@@ -209,58 +209,60 @@ void main() {{
     }
 }
 
-impl Add for &Expr {
+// Implementations for arithmetic operations on references to Exprs.
+
+impl<T: Into<Expr>> Add<T> for &Expr {
     type Output = Expr;
-    fn add(self, other: &Expr) -> Expr {
+    fn add(self, other: T) -> Expr {
         Expr::Operation {
             op: Operation::Add,
             dtype: self.dtype(),
             lhs: Box::new(self.clone()),
-            rhs: Box::new(other.clone()),
+            rhs: Box::new(other.into()),
         }
     }
 }
-impl Sub for &Expr {
+impl<T: Into<Expr>> Sub<T> for &Expr {
     type Output = Expr;
-    fn sub(self, other: &Expr) -> Expr {
+    fn sub(self, other: T) -> Expr {
         Expr::Operation {
             op: Operation::Sub,
             dtype: self.dtype(),
             lhs: Box::new(self.clone()),
-            rhs: Box::new(other.clone()),
+            rhs: Box::new(other.into()),
         }
     }
 }
-impl Mul for &Expr {
+impl<T: Into<Expr>> Mul<T> for &Expr {
     type Output = Expr;
-    fn mul(self, other: &Expr) -> Expr {
+    fn mul(self, other: T) -> Expr {
         Expr::Operation {
             op: Operation::Mul,
             dtype: self.dtype(),
             lhs: Box::new(self.clone()),
-            rhs: Box::new(other.clone()),
+            rhs: Box::new(other.into()),
         }
     }
 }
-impl Div for &Expr {
+impl<T: Into<Expr>> Div<T> for &Expr {
     type Output = Expr;
-    fn div(self, other: &Expr) -> Expr {
+    fn div(self, other: T) -> Expr {
         Expr::Operation {
             op: Operation::Div,
             dtype: self.dtype(),
             lhs: Box::new(self.clone()),
-            rhs: Box::new(other.clone()),
+            rhs: Box::new(other.into()),
         }
     }
 }
-impl Rem for &Expr {
+impl<T: Into<Expr>> Rem<T> for &Expr {
     type Output = Expr;
-    fn rem(self, other: &Expr) -> Expr {
+    fn rem(self, other: T) -> Expr {
         Expr::Operation {
             op: Operation::Mod,
             dtype: self.dtype(),
             lhs: Box::new(self.clone()),
-            rhs: Box::new(other.clone()),
+            rhs: Box::new(other.into()),
         }
     }
 }
@@ -276,6 +278,45 @@ impl Neg for &Expr {
             }),
             rhs: Box::new(self.clone()),
         }
+    }
+}
+
+// Implementations for arithmetic operations on Exprs.
+
+impl<T: Into<Expr>> Add<T> for Expr {
+    type Output = Expr;
+    fn add(self, other: T) -> Expr {
+        &self + other.into()
+    }
+}
+impl<T: Into<Expr>> Sub<T> for Expr {
+    type Output = Expr;
+    fn sub(self, other: T) -> Expr {
+        &self - other.into()
+    }
+}
+impl<T: Into<Expr>> Mul<T> for Expr {
+    type Output = Expr;
+    fn mul(self, other: Expr) -> Expr {
+        &self * other.into()
+    }
+}
+impl<T: Into<Expr>> Div<T> for Expr {
+    type Output = Expr;
+    fn div(self, other: T) -> Expr {
+        &self / other.into()
+    }
+}
+impl<T: Into<Expr>> Rem<T> for Expr {
+    type Output = Expr;
+    fn rem(self, other: T) -> Expr {
+        &self % other.into()
+    }
+}
+impl Neg for Expr {
+    type Output = Expr;
+    fn neg(self) -> Expr {
+        -&self
     }
 }
 
@@ -318,6 +359,11 @@ impl From<bool> for Expr {
             val: format!("{}", val),
             dtype: Dtype::Bool,
         }
+    }
+}
+impl From<&Expr> for Expr {
+    fn from(val: &Expr) -> Expr {
+        val.clone()
     }
 }
 
@@ -558,7 +604,7 @@ fn test_expression_literals() {
 
 #[test]
 fn test_complex_high_level_expression() {
-    let expr = &Expr::var("a", Dtype::U32) + &(&(&Expr::from(12u32) * &Expr::var("b", Dtype::U32)) + &Expr::from(5u32));
+    let expr = Expr::var("a", Dtype::U32) + Expr::var("b", Dtype::U32) * 12u32 + 5u32;
     assert_eq!( expr, 
         Expr::Operation {
             op: Operation::Add,
